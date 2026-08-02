@@ -30,6 +30,58 @@ KEY_VITALS = [
     "Lactate", "WBC", "Age", "Gender", "ICULOS",
 ]
 
+FEATURE_LABELS = {
+    "Hour": "Hours in ICU (time of measurement)",
+    "HR": "Heart rate (HR, bpm)",
+    "O2Sat": "Oxygen saturation (O2Sat, %)",
+    "Temp": "Body temperature (°C)",
+    "SBP": "Systolic blood pressure (SBP, mmHg)",
+    "MAP": "Mean arterial pressure (MAP, mmHg)",
+    "DBP": "Diastolic blood pressure (DBP, mmHg)",
+    "Resp": "Respiratory rate (breaths/min)",
+    "BaseExcess": "Base excess (blood buffer balance)",
+    "HCO3": "Bicarbonate (HCO3, mEq/L)",
+    "FiO2": "Fraction of inspired oxygen (FiO2, 0–1)",
+    "pH": "Blood pH",
+    "PaCO2": "Partial pressure of CO2 (PaCO2, mmHg)",
+    "SaO2": "Arterial oxygen saturation (SaO2, %)",
+    "AST": "Aspartate aminotransferase / liver enzyme (AST)",
+    "BUN": "Blood urea nitrogen (BUN, mg/dL)",
+    "Alkalinephos": "Alkaline phosphatase (liver/bone enzyme)",
+    "Calcium": "Calcium (mg/dL)",
+    "Chloride": "Chloride (mEq/L)",
+    "Creatinine": "Creatinine (kidney function, mg/dL)",
+    "Bilirubin_direct": "Direct bilirubin (mg/dL)",
+    "Glucose": "Blood glucose (mg/dL)",
+    "Lactate": "Lactate (mmol/L)",
+    "Magnesium": "Magnesium (mg/dL)",
+    "Phosphate": "Phosphate (mg/dL)",
+    "Potassium": "Potassium (mEq/L)",
+    "Bilirubin_total": "Total bilirubin (mg/dL)",
+    "TroponinI": "Troponin I (heart injury marker)",
+    "Hct": "Hematocrit (Hct, %)",
+    "Hgb": "Hemoglobin (Hgb, g/dL)",
+    "PTT": "Partial thromboplastin time (PTT, sec)",
+    "WBC": "White blood cell count (WBC, K/uL)",
+    "Fibrinogen": "Fibrinogen (clotting factor, mg/dL)",
+    "Platelets": "Platelet count (K/uL)",
+    "Age": "Age (years)",
+    "Gender": "Gender",
+    "Unit1": "ICU unit 1 (indicator, 0 or 1)",
+    "Unit2": "ICU unit 2 (indicator, 0 or 1)",
+    "HospAdmTime": "Hospital admission time (hours)",
+    "ICULOS": "ICU length of stay so far (ICULOS, hours)",
+    TARGET_COL: "Sepsis label (actual outcome)",
+}
+
+
+def feature_label(name: str) -> str:
+    return FEATURE_LABELS.get(name, name)
+
+
+def feature_help(name: str) -> str:
+    return f"Dataset column name: `{name}`"
+
 # Training-set medians (same as AI_Assignment.ipynb Section 2.3)
 FEATURE_MEDIANS = {
     "Hour": 20.0,
@@ -159,18 +211,19 @@ def render_vital_inputs() -> dict:
         with cols[idx % 3]:
             if vital == "Gender":
                 inputs[vital] = st.selectbox(
-                    "Gender",
+                    feature_label("Gender"),
                     options=[0, 1],
                     format_func=lambda x: "Female" if x == 0 else "Male",
                     index=int(default),
                 )
             else:
                 inputs[vital] = st.number_input(
-                    vital,
+                    feature_label(vital),
                     min_value=float(min_val),
                     max_value=float(max_val),
                     value=default,
                     step=float(step),
+                    help=feature_help(vital),
                 )
     return inputs
 
@@ -220,19 +273,20 @@ def main() -> None:
         st.subheader("Key vital signs")
         st.write("Adjust the main vitals below. Other features use training-set medians automatically.")
         user_inputs = render_vital_inputs()
+        lab_features = [col for col in FEATURE_COLUMNS if col not in KEY_VITALS]
 
-        with st.expander("Advanced: edit all 40 features"):
-            advanced_inputs = {}
-            adv_cols = st.columns(4)
-            for idx, col in enumerate(FEATURE_COLUMNS):
-                with adv_cols[idx % 4]:
-                    advanced_inputs[col] = st.number_input(
-                        col,
+        with st.expander("Advanced: edit lab values (optional)"):
+            st.caption("Key vitals above are used as-is. Adjust remaining lab features here if needed.")
+            adv_cols = st.columns(2)
+            for idx, col in enumerate(lab_features):
+                with adv_cols[idx % 2]:
+                    user_inputs[col] = st.number_input(
+                        feature_label(col),
                         value=float(user_inputs.get(col, FEATURE_MEDIANS[col])),
                         format="%.4f",
                         key=f"adv_{col}",
+                        help=feature_help(col),
                     )
-            user_inputs = advanced_inputs
 
         if st.button("Predict sepsis risk", type="primary", key="predict_manual"):
             features = build_feature_row(user_inputs)
@@ -248,9 +302,9 @@ def main() -> None:
         record = samples.iloc[int(sample_idx)]
         actual = int(record[TARGET_COL])
 
-        st.dataframe(
-            record[FEATURE_COLUMNS + [TARGET_COL]].astype(float).to_frame("Value")
-        )
+        sample_table = record[FEATURE_COLUMNS + [TARGET_COL]].astype(float).to_frame("Value")
+        sample_table.index = [feature_label(name) for name in sample_table.index]
+        st.dataframe(sample_table)
 
         if st.button("Predict for this patient", type="primary", key="predict_sample"):
             features = row_from_cleaned_record(record)
