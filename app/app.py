@@ -302,9 +302,12 @@ def main() -> None:
         record = samples.iloc[int(sample_idx)]
         actual = int(record[TARGET_COL])
 
-        sample_table = record[FEATURE_COLUMNS + [TARGET_COL]].astype(float).to_frame("Value")
-        sample_table.index = [feature_label(name) for name in sample_table.index]
-        st.dataframe(sample_table)
+        cols = FEATURE_COLUMNS + [TARGET_COL]
+        sample_table = pd.DataFrame({
+            "Feature": [feature_label(c) for c in cols],
+            "Value": record[cols].astype(float).values,
+        })
+        st.dataframe(sample_table, hide_index=True)
 
         if st.button("Predict for this patient", type="primary", key="predict_sample"):
             features = row_from_cleaned_record(record)
