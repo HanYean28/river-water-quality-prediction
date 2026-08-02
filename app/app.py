@@ -161,10 +161,10 @@ def render_vital_inputs() -> dict:
             else:
                 inputs[vital] = st.number_input(
                     vital,
-                    min_value=min_val,
-                    max_value=max_val,
+                    min_value=float(min_val),
+                    max_value=float(max_val),
                     value=default,
-                    step=step,
+                    step=float(step),
                 )
     return inputs
 
