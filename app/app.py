@@ -241,7 +241,7 @@ def main() -> None:
         actual = int(record[TARGET_COL])
 
         st.dataframe(
-            record[FEATURE_COLUMNS + [TARGET_COL]].astype(float).T.rename(columns={record.name: "Value"})
+            record[FEATURE_COLUMNS + [TARGET_COL]].astype(float).to_frame("Value")
         )
 
         if st.button("Predict for this patient", type="primary", key="predict_sample"):
