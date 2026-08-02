@@ -11,6 +11,7 @@ import streamlit as st
 ROOT = Path(__file__).resolve().parent.parent
 MODEL_DIR = ROOT / "DataTraining" / "models"
 DATASET_PATH = ROOT / "Sepsis_dataset.csv"
+TEST_SAMPLES_PATH = ROOT / "DataTraining" / "test_samples.csv"
 
 TARGET_COL = "SepsisLabel"
 
@@ -131,9 +132,14 @@ def load_model(model_file: str):
 
 @st.cache_data
 def get_sample_patients() -> pd.DataFrame:
-    df = pd.read_csv(DATASET_PATH)
-    cleaned = clean_raw_dataframe(df)
-    return cleaned.sample(n=min(200, len(cleaned)), random_state=42)
+    """Load the 20% test set exported from AI_Assignment.ipynb."""
+    if not TEST_SAMPLES_PATH.exists():
+        st.error(
+            f"Missing `{TEST_SAMPLES_PATH.name}`. Run the export cell in "
+            "`AI_Assignment.ipynb` (right after the 80/20 train_test_split)."
+        )
+        return pd.DataFrame(columns=FEATURE_COLUMNS + [TARGET_COL])
+    return pd.read_csv(TEST_SAMPLES_PATH)
 
 
 def predict(model, features: pd.DataFrame) -> tuple[int, float | None]:
@@ -234,8 +240,10 @@ def main() -> None:
             show_result(prediction, probability)
 
     with tab_sample:
-        st.subheader("Random patient from dataset")
+        st.subheader("Test set patient (20% holdout from notebook)")
         samples = get_sample_patients()
+        if samples.empty:
+            return
         sample_idx = st.number_input("Sample index", min_value=0, max_value=len(samples) - 1, value=0, step=1)
         record = samples.iloc[int(sample_idx)]
         actual = int(record[TARGET_COL])
