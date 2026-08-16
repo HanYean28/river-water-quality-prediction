@@ -7,6 +7,7 @@ from pathlib import Path
 import joblib
 import pandas as pd
 import streamlit as st
+import altair as alt
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "DataTraining"
@@ -235,21 +236,23 @@ def render_results(model_name: str) -> None:
         st.subheader("Mutual Information Feature Ranking")
         ranking_display = ranking.copy()
         ranking_display["Mutual Information"] = ranking_display["Mutual Information"].round(4)
-        st.dataframe(
-            ranking_display,
-            hide_index=True,
-            use_container_width=True,
-            height=360,
-            column_config={
-                "Rank": st.column_config.NumberColumn("Rank", width="small"),
-                "Feature": st.column_config.TextColumn("Feature", width="medium"),
-                "Mutual Information": st.column_config.NumberColumn(
-                    "Mutual Information",
-                    format="%.4f",
-                    width="medium",
-                ),
-            },
+
+        chart_df = ranking_display.sort_values("Mutual Information", ascending=False)
+        chart_height = max(420, len(chart_df) * 28)
+        base_chart = alt.Chart(chart_df).encode(
+            x=alt.X("Mutual Information:Q", title="Mutual Information"),
+            y=alt.Y("Feature:N", sort="-x", title="Feature"),
+            tooltip=["Rank", "Feature", alt.Tooltip("Mutual Information:Q", format=".4f")],
         )
+        bars = base_chart.mark_bar(color="#2563eb")
+        labels = base_chart.mark_text(
+            align="left",
+            baseline="middle",
+            dx=4,
+            color="#111827",
+        ).encode(text=alt.Text("Mutual Information:Q", format=".4f"))
+        chart = (bars + labels).properties(height=chart_height)
+        st.altair_chart(chart, use_container_width=True)
 
 
 
@@ -312,6 +315,10 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+
 
 
 
