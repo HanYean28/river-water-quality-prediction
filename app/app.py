@@ -1,4 +1,4 @@
-"""Streamlit demo for sepsis prediction within a 6-hour window."""
+﻿"""Streamlit app for river water quality safety prediction."""
 
 from __future__ import annotations
 
@@ -9,172 +9,73 @@ import pandas as pd
 import streamlit as st
 
 ROOT = Path(__file__).resolve().parent.parent
-MODEL_DIR = ROOT / "DataTraining" / "models"
-DATASET_PATH = ROOT / "Sepsis_dataset.csv"
-TEST_SAMPLES_PATH = ROOT / "DataTraining" / "test_samples.csv"
+DATA_DIR = ROOT / "DataTraining"
+MODEL_DIR = DATA_DIR / "models"
+TRAIN_PATH = DATA_DIR / "water_quality_train_1000.csv"
+TEST_PATH = DATA_DIR / "water_quality_test_600.csv"
+COMPARISON_PATH = DATA_DIR / "model_comparison_results.csv"
+FEATURE_RANKING_PATH = DATA_DIR / "feature_mutual_information.csv"
 
-TARGET_COL = "SepsisLabel"
-
-FEATURE_COLUMNS = [
-    "Hour", "HR", "O2Sat", "Temp", "SBP", "MAP", "DBP", "Resp",
-    "BaseExcess", "HCO3", "FiO2", "pH", "PaCO2", "SaO2", "AST", "BUN",
-    "Alkalinephos", "Calcium", "Chloride", "Creatinine", "Bilirubin_direct",
-    "Glucose", "Lactate", "Magnesium", "Phosphate", "Potassium",
-    "Bilirubin_total", "TroponinI", "Hct", "Hgb", "PTT", "WBC",
-    "Fibrinogen", "Platelets", "Age", "Gender", "Unit1", "Unit2",
-    "HospAdmTime", "ICULOS",
-]
-
-KEY_VITALS = [
-    "Hour", "HR", "O2Sat", "Temp", "SBP", "MAP", "DBP", "Resp",
-    "Lactate", "WBC", "Age", "Gender", "ICULOS",
-]
-
-FEATURE_LABELS = {
-    "Hour": "Hours in ICU (time of measurement)",
-    "HR": "Heart rate (HR, bpm)",
-    "O2Sat": "Oxygen saturation (O2Sat, %)",
-    "Temp": "Body temperature (°C)",
-    "SBP": "Systolic blood pressure (SBP, mmHg)",
-    "MAP": "Mean arterial pressure (MAP, mmHg)",
-    "DBP": "Diastolic blood pressure (DBP, mmHg)",
-    "Resp": "Respiratory rate (breaths/min)",
-    "BaseExcess": "Base excess (blood buffer balance)",
-    "HCO3": "Bicarbonate (HCO3, mEq/L)",
-    "FiO2": "Fraction of inspired oxygen (FiO2, 0–1)",
-    "pH": "Blood pH",
-    "PaCO2": "Partial pressure of CO2 (PaCO2, mmHg)",
-    "SaO2": "Arterial oxygen saturation (SaO2, %)",
-    "AST": "Aspartate aminotransferase / liver enzyme (AST)",
-    "BUN": "Blood urea nitrogen (BUN, mg/dL)",
-    "Alkalinephos": "Alkaline phosphatase (liver/bone enzyme)",
-    "Calcium": "Calcium (mg/dL)",
-    "Chloride": "Chloride (mEq/L)",
-    "Creatinine": "Creatinine (kidney function, mg/dL)",
-    "Bilirubin_direct": "Direct bilirubin (mg/dL)",
-    "Glucose": "Blood glucose (mg/dL)",
-    "Lactate": "Lactate (mmol/L)",
-    "Magnesium": "Magnesium (mg/dL)",
-    "Phosphate": "Phosphate (mg/dL)",
-    "Potassium": "Potassium (mEq/L)",
-    "Bilirubin_total": "Total bilirubin (mg/dL)",
-    "TroponinI": "Troponin I (heart injury marker)",
-    "Hct": "Hematocrit (Hct, %)",
-    "Hgb": "Hemoglobin (Hgb, g/dL)",
-    "PTT": "Partial thromboplastin time (PTT, sec)",
-    "WBC": "White blood cell count (WBC, K/uL)",
-    "Fibrinogen": "Fibrinogen (clotting factor, mg/dL)",
-    "Platelets": "Platelet count (K/uL)",
-    "Age": "Age (years)",
-    "Gender": "Gender",
-    "Unit1": "ICU unit 1 (indicator, 0 or 1)",
-    "Unit2": "ICU unit 2 (indicator, 0 or 1)",
-    "HospAdmTime": "Hospital admission time (hours)",
-    "ICULOS": "ICU length of stay so far (ICULOS, hours)",
-    TARGET_COL: "Sepsis label (actual outcome)",
-}
-
-
-def feature_label(name: str) -> str:
-    return FEATURE_LABELS.get(name, name)
-
-
-def feature_help(name: str) -> str:
-    return f"Dataset column name: `{name}`"
-
-# Training-set medians (same as AI_Assignment.ipynb Section 2.3)
-FEATURE_MEDIANS = {
-    "Hour": 20.0,
-    "HR": 84.0,
-    "O2Sat": 98.0,
-    "Temp": 37.06,
-    "SBP": 119.0,
-    "MAP": 77.0,
-    "DBP": 59.0,
-    "Resp": 18.0,
-    "BaseExcess": 0.0,
-    "HCO3": 24.0,
-    "FiO2": 0.5,
-    "pH": 7.39,
-    "PaCO2": 40.0,
-    "SaO2": 97.0,
-    "AST": 57.0,
-    "BUN": 18.0,
-    "Alkalinephos": 79.0,
-    "Calcium": 8.3,
-    "Chloride": 106.0,
-    "Creatinine": 0.9,
-    "Bilirubin_direct": 1.5,
-    "Glucose": 124.0,
-    "Lactate": 1.8,
-    "Magnesium": 2.0,
-    "Phosphate": 3.4,
-    "Potassium": 4.1,
-    "Bilirubin_total": 0.9,
-    "TroponinI": 4.75,
-    "Hct": 30.2,
-    "Hgb": 10.4,
-    "PTT": 32.4,
-    "WBC": 10.8,
-    "Fibrinogen": 248.0,
-    "Platelets": 181.0,
-    "Age": 65.27,
-    "Gender": 1.0,
-    "Unit1": 1.0,
-    "Unit2": 0.0,
-    "HospAdmTime": -2.59,
-    "ICULOS": 21.0,
-}
+TARGET_COL = "is_safe"
 
 MODEL_OPTIONS = {
-    "KNN (recommended)": "knn_model.pkl",
+    "KNN": "knn_model.pkl",
+    "Decision Tree": "decision_tree_model.pkl",
     "SVM": "svm_model.pkl",
-    "Decision Tree": "dt_model.pkl",
 }
 
-VITAL_BOUNDS = {
-    "Hour": (0, 336, 1),
-    "HR": (20, 223, 1),
-    "O2Sat": (20, 100, 1),
-    "Temp": (21.0, 42.5, 0.1),
-    "SBP": (22, 275, 1),
-    "MAP": (20, 300, 1),
-    "DBP": (20, 300, 1),
-    "Resp": (1, 70, 1),
-    "Lactate": (0.3, 31.0, 0.1),
-    "WBC": (0.1, 423.0, 0.1),
-    "Age": (18.0, 95.0, 0.1),
-    "Gender": (0, 1, 1),
-    "ICULOS": (1, 336, 1),
+FEATURE_LABELS = {
+    "aluminium": "Aluminium",
+    "ammonia": "Ammonia",
+    "arsenic": "Arsenic",
+    "barium": "Barium",
+    "cadmium": "Cadmium",
+    "chloramine": "Chloramine",
+    "chromium": "Chromium",
+    "copper": "Copper",
+    "flouride": "Flouride",
+    "bacteria": "Bacteria",
+    "viruses": "Viruses",
+    "lead": "Lead",
+    "nitrates": "Nitrates",
+    "nitrites": "Nitrites",
+    "mercury": "Mercury",
+    "perchlorate": "Perchlorate",
+    "radium": "Radium",
+    "selenium": "Selenium",
+    "silver": "Silver",
+    "uranium": "Uranium",
 }
 
 
-def clean_raw_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    """Same cleaning steps as AI_Assignment.ipynb Section 2."""
-    cleaned = df.drop_duplicates()
-    cleaned = cleaned.drop(columns=["Patient_ID", "Unnamed: 0"], errors="ignore")
-    cleaned = cleaned.dropna(axis=1, how="all")
-    cleaned = cleaned.dropna(subset=[TARGET_COL])
-
-    medians = cleaned.drop(columns=[TARGET_COL]).median(numeric_only=True)
-    cleaned = cleaned.copy()
-    cleaned[medians.index] = cleaned[medians.index].fillna(medians)
-    return cleaned
+def feature_label(feature: str) -> str:
+    return FEATURE_LABELS.get(feature, feature.replace("_", " ").title())
 
 
-def build_feature_row(user_inputs: dict | None = None) -> pd.DataFrame:
-    """Build one model-ready row; missing fields use training medians."""
-    row = pd.Series(FEATURE_MEDIANS, dtype=float)
-    if user_inputs:
-        for key, value in user_inputs.items():
-            if key in row.index:
-                row[key] = value
-    return pd.DataFrame([row[FEATURE_COLUMNS].values], columns=FEATURE_COLUMNS)
+@st.cache_data
+def load_train_data() -> pd.DataFrame:
+    return pd.read_csv(TRAIN_PATH)
 
 
-def row_from_cleaned_record(record: pd.Series) -> pd.DataFrame:
-    values = record[FEATURE_COLUMNS].astype(float).values
-    return pd.DataFrame([values], columns=FEATURE_COLUMNS)
+@st.cache_data
+def load_test_data() -> pd.DataFrame:
+    return pd.read_csv(TEST_PATH)
+
+
+@st.cache_data
+def load_model_comparison() -> pd.DataFrame:
+    if not COMPARISON_PATH.exists():
+        return pd.DataFrame()
+    return pd.read_csv(COMPARISON_PATH)
+
+
+@st.cache_data
+def load_feature_ranking() -> pd.DataFrame:
+    if not FEATURE_RANKING_PATH.exists():
+        return pd.DataFrame()
+    return pd.read_csv(FEATURE_RANKING_PATH)
+
+
 
 
 @st.cache_resource
@@ -183,137 +84,237 @@ def load_model(model_file: str):
 
 
 @st.cache_data
-def get_sample_patients() -> pd.DataFrame:
-    """Load the 20% test set exported from AI_Assignment.ipynb."""
-    if not TEST_SAMPLES_PATH.exists():
-        st.error(
-            f"Missing `{TEST_SAMPLES_PATH.name}`. Run the export cell in "
-            "`AI_Assignment.ipynb` (right after the 80/20 train_test_split)."
-        )
-        return pd.DataFrame(columns=FEATURE_COLUMNS + [TARGET_COL])
-    return pd.read_csv(TEST_SAMPLES_PATH)
+def get_feature_medians() -> dict[str, float]:
+    train_df = load_train_data()
+    return train_df.drop(columns=[TARGET_COL]).median(numeric_only=True).to_dict()
 
 
-def predict(model, features: pd.DataFrame) -> tuple[int, float | None]:
-    prediction = int(model.predict(features)[0])
-    probability = None
-    if hasattr(model, "predict_proba"):
-        probability = float(model.predict_proba(features)[0][1])
-    return prediction, probability
+@st.cache_data
+def get_feature_bounds() -> dict[str, tuple[float, float]]:
+    train_df = load_train_data()
+    features = train_df.drop(columns=[TARGET_COL])
+    return {
+        column: (float(features[column].min()), float(features[column].max()))
+        for column in features.columns
+    }
 
 
-def render_vital_inputs() -> dict:
-    inputs: dict = {}
+def get_feature_columns() -> list[str]:
+    train_df = load_train_data()
+    return [column for column in train_df.columns if column != TARGET_COL]
+
+
+def build_feature_row(user_inputs: dict[str, float]) -> pd.DataFrame:
+    feature_columns = get_feature_columns()
+    medians = get_feature_medians()
+    row = {feature: float(user_inputs.get(feature, medians[feature])) for feature in feature_columns}
+    return pd.DataFrame([row], columns=feature_columns)
+
+
+def predict(model, features: pd.DataFrame) -> int:
+    return int(model.predict(features)[0])
+
+
+def format_label(value: int) -> str:
+    return "Safe" if int(value) == 1 else "Unsafe"
+
+
+def render_model_metrics(model_name: str) -> None:
+    comparison = load_model_comparison()
+    if comparison.empty:
+        return
+
+    row = comparison[comparison["Model"] == model_name]
+    if row.empty:
+        return
+
+    row = row.iloc[0]
+    cols = st.columns(4)
+    cols[0].metric(
+        "Accuracy",
+        f"{row['Accuracy'] * 100:.2f}%",
+        help="Overall percentage of correct predictions on the test set.",
+    )
+    cols[1].metric(
+        "Precision",
+        f"{row['Precision_Safe_Class_1'] * 100:.2f}%",
+        help="Of the samples predicted as safe, how many were actually safe.",
+    )
+    cols[2].metric(
+        "Recall",
+        f"{row['Recall_Safe_Class_1'] * 100:.2f}%",
+        help="Of the actual safe samples, how many were correctly predicted as safe.",
+    )
+    cols[3].metric(
+        "F1",
+        f"{row['F1_Safe_Class_1'] * 100:.2f}%",
+        help="Balance between precision and recall.",
+    )
+
+
+def render_manual_inputs() -> dict[str, float]:
+    feature_columns = get_feature_columns()
+    medians = get_feature_medians()
+    bounds = get_feature_bounds()
+
+    st.info(
+        "Input validation is applied using the observed training-data range. "
+        "Values outside this range are blocked because the model has not learned from such values."
+    )
+
+    inputs: dict[str, float] = {}
     cols = st.columns(3)
-    for idx, vital in enumerate(KEY_VITALS):
-        min_val, max_val, step = VITAL_BOUNDS[vital]
-        default = float(FEATURE_MEDIANS[vital])
-        with cols[idx % 3]:
-            if vital == "Gender":
-                inputs[vital] = st.selectbox(
-                    feature_label("Gender"),
-                    options=[0, 1],
-                    format_func=lambda x: "Female" if x == 0 else "Male",
-                    index=int(default),
-                )
-            else:
-                inputs[vital] = st.number_input(
-                    feature_label(vital),
-                    min_value=float(min_val),
-                    max_value=float(max_val),
-                    value=default,
-                    step=float(step),
-                    help=feature_help(vital),
-                )
+    for index, feature in enumerate(feature_columns):
+        min_value, max_value = bounds[feature]
+        step = 0.001 if max_value <= 1 else 0.01
+        with cols[index % 3]:
+            inputs[feature] = st.number_input(
+                feature_label(feature),
+                min_value=min_value,
+                max_value=max_value,
+                value=float(medians[feature]),
+                step=step,
+                format="%.4f",
+                help=f"Allowed range based on training data: {min_value:.4f} to {max_value:.4f}",
+            )
     return inputs
 
 
-def show_result(prediction: int, probability: float | None, actual_label: int | None = None) -> None:
+def show_prediction(prediction: int, actual_label: int | None = None) -> None:
     if prediction == 1:
-        st.error("Prediction: **Sepsis likely within 6 hours**")
+        st.success("Prediction: Safe water")
     else:
-        st.success("Prediction: **No sepsis predicted within 6 hours**")
-
-    if probability is not None:
-        st.metric("Sepsis probability", f"{probability * 100:.1f}%")
-    else:
-        st.caption("This model does not output probability scores (SVM).")
+        st.error("Prediction: Unsafe water")
 
     if actual_label is not None:
-        actual_text = "Sepsis" if actual_label == 1 else "No sepsis"
-        match = "Correct" if actual_label == prediction else "Incorrect"
-        st.write(f"Actual label: **{actual_text}** — model was **{match}** on this sample.")
+        actual_text = format_label(actual_label)
+        result = "Correct" if prediction == int(actual_label) else "Incorrect"
+        st.write(f"Actual label: **{actual_text}**")
+        st.write(f"Model result: **{result}**")
+
+
+def render_sample_table(record: pd.Series) -> None:
+    feature_columns = get_feature_columns()
+    table = pd.DataFrame({
+        "Feature": [feature_label(feature) for feature in feature_columns] + ["Actual Result"],
+        "Value": [record[feature] for feature in feature_columns] + [format_label(record[TARGET_COL])],
+    })
+    st.dataframe(table, hide_index=True, use_container_width=True)
+
+
+def render_results(model_name: str) -> None:
+    comparison = load_model_comparison()
+    ranking = load_feature_ranking()
+
+    st.subheader(f"{model_name} Performance")
+    render_model_metrics(model_name)
+
+    if not comparison.empty:
+        st.subheader("Model Comparison")
+        display_df = comparison.copy()
+        percent_cols = [
+            "Accuracy",
+            "Precision_Safe_Class_1",
+            "Recall_Safe_Class_1",
+            "F1_Safe_Class_1",
+            "Recall_Unsafe_Class_0",
+        ]
+        display_df[percent_cols] = (display_df[percent_cols] * 100).round(2)
+        display_df = display_df.rename(columns={
+            "Precision_Safe_Class_1": "Precision Safe (%)",
+            "Recall_Safe_Class_1": "Recall Safe (%)",
+            "F1_Safe_Class_1": "F1 Safe (%)",
+            "Recall_Unsafe_Class_0": "Recall Unsafe (%)",
+            "False_Safe_Count": "False Safe",
+            "False_Unsafe_Count": "False Unsafe",
+            "Accuracy": "Accuracy (%)",
+        })
+        st.dataframe(display_df, hide_index=True, use_container_width=True, height=150)
+
+    if not ranking.empty:
+        st.subheader("Mutual Information Feature Ranking")
+        ranking_display = ranking.copy()
+        ranking_display["Mutual Information"] = ranking_display["Mutual Information"].round(4)
+        st.dataframe(
+            ranking_display,
+            hide_index=True,
+            use_container_width=True,
+            height=360,
+            column_config={
+                "Rank": st.column_config.NumberColumn("Rank", width="small"),
+                "Feature": st.column_config.TextColumn("Feature", width="medium"),
+                "Mutual Information": st.column_config.NumberColumn(
+                    "Mutual Information",
+                    format="%.4f",
+                    width="medium",
+                ),
+            },
+        )
+
 
 
 def main() -> None:
-    st.set_page_config(page_title="Sepsis Prediction", page_icon="🩺", layout="wide")
+    st.set_page_config(page_title="River Water Quality Prediction", layout="wide")
 
-    st.title("Sepsis Prediction Demo")
-    st.caption(
-        "BMCS Artificial Intelligence — Predicting sepsis development within a 6-hour window. "
-        "For educational demo only; not for clinical use."
-    )
+    st.title("River Water Quality Prediction")
+    st.write("Predict whether a water sample is safe or unsafe using KNN, Decision Tree, or SVM.")
+
+    missing_files = [
+        path for path in [TRAIN_PATH, TEST_PATH, *[MODEL_DIR / file for file in MODEL_OPTIONS.values()]]
+        if not path.exists()
+    ]
+    if missing_files:
+        st.error("Some required files are missing. Run the preprocessing and model training notebooks first.")
+        for path in missing_files:
+            st.write(path)
+        return
 
     with st.sidebar:
         st.header("Model")
-        model_label = st.selectbox("Choose model", list(MODEL_OPTIONS.keys()))
-        model = load_model(MODEL_OPTIONS[model_label])
-        st.info("KNN has the highest recall (66.9%) on the test set.")
+        model_name = st.selectbox("Choose model", list(MODEL_OPTIONS.keys()), index=1)
+        model = load_model(MODEL_OPTIONS[model_name])
 
-        st.header("About")
-        st.markdown(
-            "- Missing lab values are filled with **training medians** (same as notebook).\n"
-            "- Each saved model includes **scaler + classifier**.\n"
-            "- Test set remains imbalanced; the UI shows risk, not a diagnosis."
-        )
+        st.header("Target Label")
+        st.write("0 = Unsafe")
+        st.write("1 = Safe")
 
-    tab_manual, tab_sample = st.tabs(["Enter vitals", "Try sample patient"])
+    tab_manual, tab_sample, tab_results = st.tabs(["Manual Input", "Test Sample", "Results"])
 
     with tab_manual:
-        st.subheader("Key vital signs")
-        st.write("Adjust the main vitals below. Other features use training-set medians automatically.")
-        user_inputs = render_vital_inputs()
-        lab_features = [col for col in FEATURE_COLUMNS if col not in KEY_VITALS]
-
-        with st.expander("Advanced: edit lab values (optional)"):
-            st.caption("Key vitals above are used as-is. Adjust remaining lab features here if needed.")
-            adv_cols = st.columns(2)
-            for idx, col in enumerate(lab_features):
-                with adv_cols[idx % 2]:
-                    user_inputs[col] = st.number_input(
-                        feature_label(col),
-                        value=float(user_inputs.get(col, FEATURE_MEDIANS[col])),
-                        format="%.4f",
-                        key=f"adv_{col}",
-                        help=feature_help(col),
-                    )
-
-        if st.button("Predict sepsis risk", type="primary", key="predict_manual"):
+        st.subheader("Manual Water Quality Input")
+        user_inputs = render_manual_inputs()
+        if st.button("Predict Water Safety", type="primary"):
             features = build_feature_row(user_inputs)
-            prediction, probability = predict(model, features)
-            show_result(prediction, probability)
+            prediction = predict(model, features)
+            show_prediction(prediction)
 
     with tab_sample:
-        st.subheader("Test set patient (20% holdout from notebook)")
-        samples = get_sample_patients()
-        if samples.empty:
-            return
-        sample_idx = st.number_input("Sample index", min_value=0, max_value=len(samples) - 1, value=0, step=1)
-        record = samples.iloc[int(sample_idx)]
-        actual = int(record[TARGET_COL])
+        st.subheader("Test Set Sample")
+        test_df = load_test_data()
+        sample_index = st.number_input(
+            "Sample index",
+            min_value=0,
+            max_value=len(test_df) - 1,
+            value=0,
+            step=1,
+        )
+        record = test_df.iloc[int(sample_index)]
+        render_sample_table(record)
 
-        cols = FEATURE_COLUMNS + [TARGET_COL]
-        sample_table = pd.DataFrame({
-            "Feature": [feature_label(c) for c in cols],
-            "Value": record[cols].astype(float).values,
-        })
-        st.dataframe(sample_table, hide_index=True)
+        if st.button("Predict Selected Sample", type="primary"):
+            features = pd.DataFrame([record[get_feature_columns()].to_dict()], columns=get_feature_columns())
+            prediction = predict(model, features)
+            show_prediction(prediction, actual_label=int(record[TARGET_COL]))
 
-        if st.button("Predict for this patient", type="primary", key="predict_sample"):
-            features = row_from_cleaned_record(record)
-            prediction, probability = predict(model, features)
-            show_result(prediction, probability, actual_label=actual)
+    with tab_results:
+        render_results(model_name)
 
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+

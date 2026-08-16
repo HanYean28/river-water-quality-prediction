@@ -1,24 +1,31 @@
-# Sepsis Prediction
+﻿# River Water Quality Prediction
 
-Predict sepsis development within a 6-hour window using SVM, KNN, and Decision Tree classifiers.
+Predict whether river water is safe or unsafe using supervised machine learning classifiers.
 
-## Project structure
+## Dataset
 
+The project uses `waterQuality.csv`, which contains water quality measurements such as aluminium, ammonia, arsenic, bacteria, viruses, lead, nitrates, mercury, and other chemical indicators.
+
+Target column:
+
+- `is_safe`
+  - `1` = safe water
+  - `0` = unsafe water
+
+## Project Structure
+
+```text
+river-water-quality-prediction/
+|-- Preprocessing.ipynb      # Data cleaning, balancing, splitting, feature selection
+|-- ModelTraining.ipynb      # KNN, Decision Tree, SVM training and evaluation
+|-- waterQuality.csv         # Original water quality dataset
+|-- app/
+|   `-- app.py               # Streamlit prediction app
+|-- DataTraining/            # Preprocessed data, results, and trained models
+`-- requirements.txt
 ```
-sepsis-prediction/
-├── AI_Assignment.ipynb      # Main notebook (EDA, training, evaluation)
-├── Sepsis_dataset.csv       # Dataset
-├── app/
-│   └── app.py               # Streamlit UI + preprocessing (all-in-one)
-├── DataTraining/
-│   └── models/
-│       ├── svm_model.pkl
-│       ├── knn_model.pkl
-│       └── dt_model.pkl
-└── requirements.txt
-```
 
-## Run the Streamlit app
+## Run The Streamlit App
 
 From the project root:
 
@@ -27,10 +34,8 @@ py -3 -m pip install -r requirements.txt
 py -3 -m streamlit run app/app.py
 ```
 
-The app opens in your browser. Use **KNN (recommended)** — it had the best recall on the test set.
-
 ## Notes
 
-- Each `.pkl` file contains a `GridSearchCV` object with **scaler + model** inside a Pipeline.
-- Missing inputs in the UI are filled with training-set medians (defined in `app/app.py`).
-- This demo is for educational purposes only, not clinical diagnosis.
+- This is a supervised binary classification problem.
+- The project uses `is_safe` as the prediction target.
+- The final app uses the selected features saved in the train/test datasets.
