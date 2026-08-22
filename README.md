@@ -33,7 +33,7 @@ The project uses `waterQuality.csv`, which contains water quality measurements s
 - viruses
 - uranium
 
-The original dataset is cleaned and prepared before model training.
+The original dataset is cleaned and prepared before model training. In the final cleaned dataset, no rows were removed for missing feature values because no remaining feature values were missing.
 
 ## Preprocessing Steps
 
@@ -43,7 +43,7 @@ The preprocessing workflow is implemented in `Preprocessing.ipynb`.
 2. Convert all columns to numeric format.
 3. Remove rows with invalid or missing target values.
 4. Remove duplicate rows.
-5. Fill missing feature values using median values.
+5. Remove rows with missing feature values if any are found.
 6. Balance the dataset to contain equal target classes:
    - 900 safe samples
    - 900 unsafe samples
@@ -147,7 +147,7 @@ river-water-quality-prediction/
 Open a terminal in the project folder:
 
 ```powershell
-cd C:\Users\hanye\Desktop\river-water-quality-prediction
+cd river-water-quality-prediction
 ```
 
 Install the required packages:
@@ -174,3 +174,4 @@ http://localhost:8501
 - The final dataset is balanced before model training.
 - Mutual Information feature selection is calculated using training data only to avoid data leakage.
 - The prediction result should be interpreted as a machine learning prediction, not as a guaranteed real-world water safety decision.
+
