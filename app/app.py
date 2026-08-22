@@ -12,15 +12,15 @@ import altair as alt
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "DataTraining"
 MODEL_DIR = DATA_DIR / "models"
-TRAIN_PATH = DATA_DIR / "water_quality_train_1000.csv"
-TEST_PATH = DATA_DIR / "water_quality_test_600.csv"
+TRAIN_PATH = DATA_DIR / "water_quality_train_1150.csv"
+TEST_PATH = DATA_DIR / "water_quality_test_650.csv"
 COMPARISON_PATH = DATA_DIR / "model_comparison_results.csv"
 FEATURE_RANKING_PATH = DATA_DIR / "feature_mutual_information.csv"
 
 TARGET_COL = "is_safe"
 
 MODEL_OPTIONS = {
-    "KNN": "knn_model.pkl",
+    "Random Forest": "random_forest_model.pkl",
     "Decision Tree": "decision_tree_model.pkl",
     "SVM": "svm_model.pkl",
 }
@@ -116,6 +116,15 @@ def predict(model, features: pd.DataFrame) -> int:
     return int(model.predict(features)[0])
 
 
+def get_prediction_confidence(model, features: pd.DataFrame, prediction: int) -> float | None:
+    if not hasattr(model, "predict_proba"):
+        return None
+
+    probabilities = model.predict_proba(features)[0]
+    class_index = list(model.classes_).index(prediction)
+    return float(probabilities[class_index])
+
+
 def format_label(value: int) -> str:
     return "Safe" if int(value) == 1 else "Unsafe"
 
@@ -181,11 +190,22 @@ def render_manual_inputs() -> dict[str, float]:
     return inputs
 
 
-def show_prediction(prediction: int, actual_label: int | None = None) -> None:
+def show_prediction(
+    prediction: int,
+    confidence: float | None = None,
+    actual_label: int | None = None,
+) -> None:
     if prediction == 1:
         st.success("Prediction: Safe water")
     else:
         st.error("Prediction: Unsafe water")
+
+    if confidence is not None:
+        st.metric(
+            "Model Confidence",
+            f"{confidence * 100:.2f}%",
+            help="Probability assigned by the model to the predicted class. This is not a guarantee that the prediction is correct.",
+        )
 
     if actual_label is not None:
         actual_text = format_label(actual_label)
@@ -260,7 +280,7 @@ def main() -> None:
     st.set_page_config(page_title="River Water Quality Prediction", layout="wide")
 
     st.title("River Water Quality Prediction")
-    st.write("Predict whether a water sample is safe or unsafe using KNN, Decision Tree, or SVM.")
+    st.write("Predict whether a water sample is safe or unsafe using Random Forest, Decision Tree, or SVM.")
 
     missing_files = [
         path for path in [TRAIN_PATH, TEST_PATH, *[MODEL_DIR / file for file in MODEL_OPTIONS.values()]]
@@ -289,7 +309,8 @@ def main() -> None:
         if st.button("Predict Water Safety", type="primary"):
             features = build_feature_row(user_inputs)
             prediction = predict(model, features)
-            show_prediction(prediction)
+            confidence = get_prediction_confidence(model, features, prediction)
+            show_prediction(prediction, confidence=confidence)
 
     with tab_sample:
         st.subheader("Test Set Sample")
@@ -307,7 +328,8 @@ def main() -> None:
         if st.button("Predict Selected Sample", type="primary"):
             features = pd.DataFrame([record[get_feature_columns()].to_dict()], columns=get_feature_columns())
             prediction = predict(model, features)
-            show_prediction(prediction, actual_label=int(record[TARGET_COL]))
+            confidence = get_prediction_confidence(model, features, prediction)
+            show_prediction(prediction, confidence=confidence, actual_label=int(record[TARGET_COL]))
 
     with tab_results:
         render_results(model_name)
@@ -315,6 +337,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
 
 
