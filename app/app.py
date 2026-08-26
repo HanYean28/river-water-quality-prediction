@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import altair as alt
 import joblib
 import pandas as pd
 import streamlit as st
-import altair as alt
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "DataTraining"
@@ -16,6 +16,7 @@ TRAIN_PATH = DATA_DIR / "water_quality_train_1150.csv"
 TEST_PATH = DATA_DIR / "water_quality_test_650.csv"
 COMPARISON_PATH = DATA_DIR / "model_comparison_results.csv"
 FEATURE_RANKING_PATH = DATA_DIR / "feature_mutual_information.csv"
+ADMIN_PASSWORD = "admin123"
 
 TARGET_COL = "is_safe"
 
@@ -49,6 +50,63 @@ FEATURE_LABELS = {
 }
 
 
+def apply_custom_css() -> None:
+    st.markdown(
+        """
+        <style>
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear {
+            display: none;
+        }
+        .access-panel {
+            text-align: center;
+            padding: 0.4rem 0 1rem;
+        }
+        .access-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #eef2ff;
+            color: #2563eb;
+            font-size: 1.7rem;
+            margin-bottom: 0.75rem;
+        }
+        .access-title {
+            font-size: 1.45rem;
+            font-weight: 700;
+            margin-bottom: 0.2rem;
+        }
+        .access-caption {
+            color: #6b7280;
+            font-size: 0.92rem;
+            margin-bottom: 1.2rem;
+        }
+        .access-choice {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 0.9rem 1rem;
+            margin: 0.75rem 0 0.45rem;
+            background: #ffffff;
+            text-align: left;
+        }
+        .access-choice strong {
+            display: block;
+            font-size: 1.02rem;
+            margin-bottom: 0.15rem;
+        }
+        .access-choice span {
+            color: #6b7280;
+            font-size: 0.88rem;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def feature_label(feature: str) -> str:
     return FEATURE_LABELS.get(feature, feature.replace("_", " ").title())
 
@@ -75,8 +133,6 @@ def load_feature_ranking() -> pd.DataFrame:
     if not FEATURE_RANKING_PATH.exists():
         return pd.DataFrame()
     return pd.read_csv(FEATURE_RANKING_PATH)
-
-
 
 
 @st.cache_resource
@@ -116,17 +172,79 @@ def predict(model, features: pd.DataFrame) -> int:
     return int(model.predict(features)[0])
 
 
-def get_prediction_confidence(model, features: pd.DataFrame, prediction: int) -> float | None:
-    if not hasattr(model, "predict_proba"):
-        return None
-
-    probabilities = model.predict_proba(features)[0]
-    class_index = list(model.classes_).index(prediction)
-    return float(probabilities[class_index])
-
-
 def format_label(value: int) -> str:
     return "Safe" if int(value) == 1 else "Unsafe"
+
+
+def initialize_state() -> None:
+    defaults = {
+        "access_mode": None,
+        "admin_authenticated": False,
+        "login_error": False,
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+
+def reset_access() -> None:
+    st.session_state.access_mode = None
+    st.session_state.admin_authenticated = False
+    st.session_state.login_error = False
+
+
+def choose_guest_access() -> None:
+    st.session_state.access_mode = "guest"
+
+
+def choose_admin_access() -> None:
+    st.session_state.access_mode = "admin"
+    st.session_state.admin_authenticated = False
+    st.session_state.login_error = False
+
+
+def authenticate_admin() -> None:
+    if st.session_state.get("admin_access_code") == ADMIN_PASSWORD:
+        st.session_state.admin_authenticated = True
+        st.session_state.login_error = False
+    else:
+        st.session_state.login_error = True
+
+
+
+def render_access_selection() -> None:
+    st.title("River Water Quality Prediction")
+    st.write("Predict whether a water sample is safe or unsafe using Random Forest, Decision Tree, or SVM.")
+
+    left, center, right = st.columns([1, 0.75, 1])
+    with center:
+        st.subheader("Choose Access")
+
+        with st.container(border=True):
+            st.markdown("**Guest Access**")
+            st.caption("Use manual input and test samples for prediction only.")
+            st.button("Continue as Guest", width="stretch", on_click=choose_guest_access)
+
+        with st.container(border=True):
+            st.markdown("**Admin Login**")
+            st.caption("Access prediction tools and model performance results.")
+            st.button("Continue as Admin", width="stretch", on_click=choose_admin_access)
+
+def render_model_sidebar(show_target_label: bool = True):
+    with st.sidebar:
+        st.header("Model")
+        model_name = st.selectbox("Choose model", list(MODEL_OPTIONS.keys()), index=0)
+        model = load_model(MODEL_OPTIONS[model_name])
+
+        if show_target_label:
+            st.header("Target Label")
+            st.write("0 = Unsafe")
+            st.write("1 = Safe")
+
+        st.divider()
+        st.button("Back to access selection", on_click=reset_access)
+
+    return model_name, model
 
 
 def render_model_metrics(model_name: str) -> None:
@@ -190,22 +308,11 @@ def render_manual_inputs() -> dict[str, float]:
     return inputs
 
 
-def show_prediction(
-    prediction: int,
-    confidence: float | None = None,
-    actual_label: int | None = None,
-) -> None:
+def show_prediction(prediction: int, actual_label: int | None = None) -> None:
     if prediction == 1:
         st.success("Prediction: Safe water")
     else:
         st.error("Prediction: Unsafe water")
-
-    if confidence is not None:
-        st.metric(
-            "Model Confidence",
-            f"{confidence * 100:.2f}%",
-            help="Probability assigned by the model to the predicted class. This is not a guarantee that the prediction is correct.",
-        )
 
     if actual_label is not None:
         actual_text = format_label(actual_label)
@@ -214,13 +321,44 @@ def show_prediction(
         st.write(f"Model result: **{result}**")
 
 
-def render_sample_table(record: pd.Series) -> None:
+def render_sample_table(record: pd.Series, show_actual: bool) -> None:
     feature_columns = get_feature_columns()
-    table = pd.DataFrame({
-        "Feature": [feature_label(feature) for feature in feature_columns] + ["Actual Result"],
-        "Value": [f"{record[feature]:.4f}" for feature in feature_columns] + [format_label(record[TARGET_COL])],
-    })
+    rows = {
+        "Feature": [feature_label(feature) for feature in feature_columns],
+        "Value": [f"{record[feature]:.4f}" for feature in feature_columns],
+    }
+    if show_actual:
+        rows["Feature"].append("Actual Result")
+        rows["Value"].append(format_label(record[TARGET_COL]))
+
+    table = pd.DataFrame(rows).astype(str)
     st.dataframe(table, hide_index=True, width="stretch")
+
+
+def render_performance_chart(comparison: pd.DataFrame) -> None:
+    metric_cols = {
+        "Accuracy": "Accuracy",
+        "Precision_Safe_Class_1": "Precision",
+        "Recall_Safe_Class_1": "Recall",
+        "F1_Safe_Class_1": "F1 Score",
+    }
+    graph_df = comparison[["Model", *metric_cols.keys()]].rename(columns=metric_cols)
+    graph_df = graph_df.melt(id_vars="Model", var_name="Metric", value_name="Metric Value")
+    graph_df["Metric Value"] = graph_df["Metric Value"] * 100
+
+    chart = (
+        alt.Chart(graph_df)
+        .mark_bar()
+        .encode(
+            x=alt.X("Model:N", title="Classification Model"),
+            y=alt.Y("Metric Value:Q", title="Metric Value (%)", scale=alt.Scale(domain=[0, 100])),
+            color=alt.Color("Metric:N", title="Metric"),
+            xOffset="Metric:N",
+            tooltip=["Model", "Metric", alt.Tooltip("Metric Value:Q", format=".2f")],
+        )
+        .properties(title="Classification Model Performance Comparison", height=420)
+    )
+    st.altair_chart(chart, width="stretch")
 
 
 def render_results(model_name: str) -> None:
@@ -232,6 +370,8 @@ def render_results(model_name: str) -> None:
 
     if not comparison.empty:
         st.subheader("Model Comparison")
+        render_performance_chart(comparison)
+
         display_df = comparison.copy()
         percent_cols = [
             "Accuracy",
@@ -242,15 +382,15 @@ def render_results(model_name: str) -> None:
         ]
         display_df[percent_cols] = (display_df[percent_cols] * 100).round(2)
         display_df = display_df.rename(columns={
+            "Accuracy": "Accuracy (%)",
             "Precision_Safe_Class_1": "Precision Safe (%)",
             "Recall_Safe_Class_1": "Recall Safe (%)",
             "F1_Safe_Class_1": "F1 Safe (%)",
             "Recall_Unsafe_Class_0": "Recall Unsafe (%)",
             "False_Safe_Count": "False Safe",
             "False_Unsafe_Count": "False Unsafe",
-            "Accuracy": "Accuracy (%)",
         })
-        st.dataframe(display_df, hide_index=True, width="stretch", height=150)
+        st.dataframe(display_df, hide_index=True, width="stretch")
 
     if not ranking.empty:
         st.subheader("Mutual Information Feature Ranking")
@@ -275,33 +415,12 @@ def render_results(model_name: str) -> None:
         st.altair_chart(chart, width="stretch")
 
 
-
-def main() -> None:
-    st.set_page_config(page_title="River Water Quality Prediction", layout="wide")
-
-    st.title("River Water Quality Prediction")
-    st.write("Predict whether a water sample is safe or unsafe using Random Forest, Decision Tree, or SVM.")
-
-    missing_files = [
-        path for path in [TRAIN_PATH, TEST_PATH, *[MODEL_DIR / file for file in MODEL_OPTIONS.values()]]
-        if not path.exists()
-    ]
-    if missing_files:
-        st.error("Some required files are missing. Run the preprocessing and model training notebooks first.")
-        for path in missing_files:
-            st.write(path)
-        return
-
-    with st.sidebar:
-        st.header("Model")
-        model_name = st.selectbox("Choose model", list(MODEL_OPTIONS.keys()), index=1)
-        model = load_model(MODEL_OPTIONS[model_name])
-
-        st.header("Target Label")
-        st.write("0 = Unsafe")
-        st.write("1 = Safe")
-
-    tab_manual, tab_sample, tab_results = st.tabs(["Manual Input", "Test Sample", "Results"])
+def render_prediction_tabs(model, show_actual: bool, include_results: bool, model_name: str) -> None:
+    if include_results:
+        tab_manual, tab_sample, tab_results = st.tabs(["Manual Input", "Test Sample", "Results"])
+    else:
+        tab_manual, tab_sample = st.tabs(["Manual Input", "Test Sample"])
+        tab_results = None
 
     with tab_manual:
         st.subheader("Manual Water Quality Input")
@@ -309,8 +428,7 @@ def main() -> None:
         if st.button("Predict Water Safety", type="primary"):
             features = build_feature_row(user_inputs)
             prediction = predict(model, features)
-            confidence = get_prediction_confidence(model, features, prediction)
-            show_prediction(prediction, confidence=confidence)
+            show_prediction(prediction)
 
     with tab_sample:
         st.subheader("Test Set Sample")
@@ -323,28 +441,72 @@ def main() -> None:
             step=1,
         )
         record = test_df.iloc[int(sample_index)]
-        render_sample_table(record)
+        render_sample_table(record, show_actual=show_actual)
 
         if st.button("Predict Selected Sample", type="primary"):
             features = pd.DataFrame([record[get_feature_columns()].to_dict()], columns=get_feature_columns())
             prediction = predict(model, features)
-            confidence = get_prediction_confidence(model, features, prediction)
-            show_prediction(prediction, confidence=confidence, actual_label=int(record[TARGET_COL]))
+            actual = int(record[TARGET_COL]) if show_actual else None
+            show_prediction(prediction, actual_label=actual)
 
-    with tab_results:
-        render_results(model_name)
+    if tab_results is not None:
+        with tab_results:
+            render_results(model_name)
+
+
+def render_guest_view() -> None:
+    model_name, model = render_model_sidebar(show_target_label=False)
+    st.title("River Water Quality Prediction")
+    st.write("Guest access: use manual input or test samples to get a prediction.")
+    render_prediction_tabs(model, show_actual=False, include_results=False, model_name=model_name)
+
+
+def render_admin_view() -> None:
+
+    if not st.session_state.admin_authenticated:
+        left, center, right = st.columns([1, 1.1, 1])
+        with center:
+            st.subheader("Admin Login")
+            st.text_input(
+                "Admin access code",
+                key="admin_access_code",
+                type="password",
+                autocomplete="off",
+                placeholder="Enter admin access code",
+            )
+            st.button("Login", type="primary", width="stretch", on_click=authenticate_admin)
+            if st.session_state.login_error:
+                st.error("Incorrect access code")
+        return
+
+    model_name, model = render_model_sidebar(show_target_label=True)
+    st.title("River Water Quality Prediction")
+    st.write("Admin access: prediction tools and model performance results.")
+    render_prediction_tabs(model, show_actual=True, include_results=True, model_name=model_name)
+
+
+def main() -> None:
+    st.set_page_config(page_title="River Water Quality Prediction", layout="wide")
+    apply_custom_css()
+    initialize_state()
+
+    missing_files = [
+        path for path in [TRAIN_PATH, TEST_PATH, *[MODEL_DIR / file for file in MODEL_OPTIONS.values()]]
+        if not path.exists()
+    ]
+    if missing_files:
+        st.error("Some required files are missing. Run the preprocessing and model training notebooks first.")
+        for path in missing_files:
+            st.write(path)
+        return
+
+    if st.session_state.access_mode is None:
+        render_access_selection()
+    elif st.session_state.access_mode == "guest":
+        render_guest_view()
+    elif st.session_state.access_mode == "admin":
+        render_admin_view()
 
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
