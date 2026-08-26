@@ -218,9 +218,9 @@ def render_sample_table(record: pd.Series) -> None:
     feature_columns = get_feature_columns()
     table = pd.DataFrame({
         "Feature": [feature_label(feature) for feature in feature_columns] + ["Actual Result"],
-        "Value": [record[feature] for feature in feature_columns] + [format_label(record[TARGET_COL])],
+        "Value": [f"{record[feature]:.4f}" for feature in feature_columns] + [format_label(record[TARGET_COL])],
     })
-    st.dataframe(table, hide_index=True, use_container_width=True)
+    st.dataframe(table, hide_index=True, width="stretch")
 
 
 def render_results(model_name: str) -> None:
@@ -250,7 +250,7 @@ def render_results(model_name: str) -> None:
             "False_Unsafe_Count": "False Unsafe",
             "Accuracy": "Accuracy (%)",
         })
-        st.dataframe(display_df, hide_index=True, use_container_width=True, height=150)
+        st.dataframe(display_df, hide_index=True, width="stretch", height=150)
 
     if not ranking.empty:
         st.subheader("Mutual Information Feature Ranking")
@@ -272,7 +272,7 @@ def render_results(model_name: str) -> None:
             color="#111827",
         ).encode(text=alt.Text("Mutual Information:Q", format=".4f"))
         chart = (bars + labels).properties(height=chart_height)
-        st.altair_chart(chart, use_container_width=True)
+        st.altair_chart(chart, width="stretch")
 
 
 
