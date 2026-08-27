@@ -139,6 +139,17 @@ def load_feature_ranking() -> pd.DataFrame:
 def load_model(model_file: str):
     return joblib.load(MODEL_DIR / model_file)
 
+def preload_prediction_assets(model_name: str, include_results: bool = False):
+    model = load_model(MODEL_OPTIONS[model_name])
+    load_train_data()
+    load_test_data()
+    get_feature_medians()
+    get_feature_bounds()
+    if include_results:
+        load_model_comparison()
+        load_feature_ranking()
+    return model
+
 
 @st.cache_data
 def get_feature_medians() -> dict[str, float]:
@@ -230,11 +241,15 @@ def render_access_selection() -> None:
             st.caption("Access prediction tools and model performance results.")
             st.button("Continue as Admin", width="stretch", on_click=choose_admin_access)
 
-def render_model_sidebar(show_target_label: bool = True):
+def render_model_sidebar(show_target_label: bool = True, allow_model_selection: bool = True):
     with st.sidebar:
         st.header("Model")
-        model_name = st.selectbox("Choose model", list(MODEL_OPTIONS.keys()), index=0)
-        model = load_model(MODEL_OPTIONS[model_name])
+        if allow_model_selection:
+            model_name = st.selectbox("Choose model", list(MODEL_OPTIONS.keys()), index=0)
+        else:
+            model_name = "Random Forest"
+            st.write("Random Forest")
+            st.caption("Highest accuracy model")
 
         if show_target_label:
             st.header("Target Label")
@@ -244,7 +259,7 @@ def render_model_sidebar(show_target_label: bool = True):
         st.divider()
         st.button("Back to access selection", on_click=reset_access)
 
-    return model_name, model
+    return model_name
 
 
 def render_model_metrics(model_name: str) -> None:
@@ -455,7 +470,11 @@ def render_prediction_tabs(model, show_actual: bool, include_results: bool, mode
 
 
 def render_guest_view() -> None:
-    model_name, model = render_model_sidebar(show_target_label=False)
+    model_name = "Random Forest"
+    with st.spinner("Loading prediction system..."):
+        model = preload_prediction_assets(model_name)
+
+    render_model_sidebar(show_target_label=False, allow_model_selection=False)
     st.title("River Water Quality Prediction")
     st.write("Guest access: use manual input or test samples to get a prediction.")
     render_prediction_tabs(model, show_actual=False, include_results=False, model_name=model_name)
@@ -479,7 +498,10 @@ def render_admin_view() -> None:
                 st.error("Incorrect access code")
         return
 
-    model_name, model = render_model_sidebar(show_target_label=True)
+    model_name = render_model_sidebar(show_target_label=True, allow_model_selection=True)
+    with st.spinner("Loading admin dashboard..."):
+        model = preload_prediction_assets(model_name, include_results=True)
+
     st.title("River Water Quality Prediction")
     st.write("Admin access: prediction tools and model performance results.")
     render_prediction_tabs(model, show_actual=True, include_results=True, model_name=model_name)
