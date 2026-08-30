@@ -1,0 +1,8 @@
+﻿Hosted Streamlit URL:
+https://river-water-quality-prediction-aucqstjpzlr3v2dbjylzbi.streamlit.app/
+
+Admin Access Code:
+admin123
+
+Local Run Command:
+py -3 -m streamlit run app/app.py
