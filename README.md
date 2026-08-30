@@ -109,13 +109,25 @@ Random Forest achieved the highest accuracy and was selected as the best-perform
 
 The Streamlit app is located in `app/app.py`.
 
+Hosted app:
+https://river-water-quality-prediction-aucqstjpzlr3v2dbjylzbi.streamlit.app/
+
+Admin access code:
+
+```text
+admin123
+```
+
 Main features:
 
-- Select trained model
+- Access selection page for Guest and Admin mode
+- Guest mode uses Random Forest, the best-performing model, for prediction
+- Admin mode requires an access code
+- Admin users can select Random Forest, Decision Tree, or SVM
 - Enter manual water quality values
-- Predict whether water is safe or unsafe
 - Test prediction using records from the test set
-- View model performance results
+- View model performance metrics and comparison chart
+- View confusion matrix for the selected model
 - View Mutual Information feature ranking graph
 
 ## Project Structure
@@ -127,6 +139,8 @@ river-water-quality-prediction/
 |-- waterQuality.csv                    # Original dataset
 |-- README.md                           # Project documentation
 |-- requirements.txt                    # Python dependencies
+|-- runtime.txt                         # Python runtime for Streamlit hosting
+|-- Streamlit_Link_and_Login.txt        # Hosted app link and admin access code
 |-- app/
 |   `-- app.py                          # Streamlit web application
 |-- DataTraining/
