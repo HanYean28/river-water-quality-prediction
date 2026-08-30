@@ -376,6 +376,85 @@ def render_performance_chart(comparison: pd.DataFrame) -> None:
     st.altair_chart(chart, width="stretch")
 
 
+
+
+def build_confusion_matrix_data(model_name: str) -> pd.DataFrame:
+    test_df = load_test_data()
+    model = load_model(MODEL_OPTIONS[model_name])
+    feature_columns = get_feature_columns()
+
+    y_true = test_df[TARGET_COL].astype(int)
+    y_pred = pd.Series(model.predict(test_df[feature_columns]).astype(int), index=test_df.index)
+
+    return pd.DataFrame(
+        [
+            {
+                "Model": model_name,
+                "Actual": "Unsafe",
+                "Predicted": "Unsafe",
+                "Count": int(((y_true == 0) & (y_pred == 0)).sum()),
+            },
+            {
+                "Model": model_name,
+                "Actual": "Unsafe",
+                "Predicted": "Safe",
+                "Count": int(((y_true == 0) & (y_pred == 1)).sum()),
+            },
+            {
+                "Model": model_name,
+                "Actual": "Safe",
+                "Predicted": "Unsafe",
+                "Count": int(((y_true == 1) & (y_pred == 0)).sum()),
+            },
+            {
+                "Model": model_name,
+                "Actual": "Safe",
+                "Predicted": "Safe",
+                "Count": int(((y_true == 1) & (y_pred == 1)).sum()),
+            },
+        ]
+    )
+
+
+def render_confusion_matrix(model_name: str) -> None:
+    matrix_df = build_confusion_matrix_data(model_name)
+    max_count = matrix_df["Count"].max()
+
+    heatmap = (
+        alt.Chart(matrix_df)
+        .mark_rect(cornerRadius=4)
+        .encode(
+            x=alt.X("Predicted:N", title="Predicted Label", sort=["Unsafe", "Safe"]),
+            y=alt.Y("Actual:N", title="Actual Label", sort=["Unsafe", "Safe"]),
+            color=alt.Color(
+                "Count:Q",
+                title="Samples",
+                scale=alt.Scale(scheme="blues", domain=[0, max_count]),
+            ),
+            tooltip=["Actual", "Predicted", "Count"],
+        )
+    )
+    labels = (
+        alt.Chart(matrix_df)
+        .mark_text(fontSize=18, fontWeight="bold")
+        .encode(
+            x=alt.X("Predicted:N", sort=["Unsafe", "Safe"]),
+            y=alt.Y("Actual:N", sort=["Unsafe", "Safe"]),
+            text="Count:Q",
+            color=alt.condition(
+                alt.datum.Count > max_count * 0.55,
+                alt.value("white"),
+                alt.value("#111827"),
+            ),
+        )
+    )
+
+    left, center, right = st.columns([1, 1.15, 1])
+    with center:
+        st.markdown(f"**{model_name}**")
+        st.altair_chart((heatmap + labels).properties(width=460, height=320), width="content")
+
+
 def render_results(model_name: str) -> None:
     comparison = load_model_comparison()
     ranking = load_feature_ranking()
@@ -405,7 +484,12 @@ def render_results(model_name: str) -> None:
             "False_Safe_Count": "False Safe",
             "False_Unsafe_Count": "False Unsafe",
         })
-        st.dataframe(display_df, hide_index=True, width="stretch")
+        left, center, right = st.columns([0.05, 1.9, 0.05])
+        with center:
+            st.dataframe(display_df, hide_index=True, width="stretch")
+
+        st.subheader("Confusion Matrix")
+        render_confusion_matrix(model_name)
 
     if not ranking.empty:
         st.subheader("Mutual Information Feature Ranking")
