@@ -455,14 +455,16 @@ def render_confusion_matrix(model_name: str) -> None:
         st.altair_chart((heatmap + labels).properties(width=460, height=320), width="content")
 
 
-def render_results(model_name: str) -> None:
+def render_model_results(model_name: str) -> None:
     comparison = load_model_comparison()
-    ranking = load_feature_ranking()
 
     st.subheader(f"{model_name} Performance")
     render_model_metrics(model_name)
 
     if not comparison.empty:
+        st.subheader("Confusion Matrix")
+        render_confusion_matrix(model_name)
+
         st.subheader("Model Comparison")
         render_performance_chart(comparison)
 
@@ -488,8 +490,9 @@ def render_results(model_name: str) -> None:
         with center:
             st.dataframe(display_df, hide_index=True, width="stretch")
 
-        st.subheader("Confusion Matrix")
-        render_confusion_matrix(model_name)
+
+def render_feature_analysis() -> None:
+    ranking = load_feature_ranking()
 
     if not ranking.empty:
         st.subheader("Mutual Information Feature Ranking")
@@ -512,14 +515,13 @@ def render_results(model_name: str) -> None:
         ).encode(text=alt.Text("Mutual Information:Q", format=".4f"))
         chart = (bars + labels).properties(height=chart_height)
         st.altair_chart(chart, width="stretch")
-
-
 def render_prediction_tabs(model, show_actual: bool, include_results: bool, model_name: str) -> None:
     if include_results:
-        tab_manual, tab_sample, tab_results = st.tabs(["Manual Input", "Test Sample", "Results"])
+        tab_manual, tab_sample, tab_results, tab_features = st.tabs(["Manual Input", "Test Sample", "Model Results", "Feature Analysis"])
     else:
         tab_manual, tab_sample = st.tabs(["Manual Input", "Test Sample"])
         tab_results = None
+        tab_features = None
 
     with tab_manual:
         st.subheader("Manual Water Quality Input")
@@ -550,7 +552,9 @@ def render_prediction_tabs(model, show_actual: bool, include_results: bool, mode
 
     if tab_results is not None:
         with tab_results:
-            render_results(model_name)
+            render_model_results(model_name)
+        with tab_features:
+            render_feature_analysis()
 
 
 def render_guest_view() -> None:
